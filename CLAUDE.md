@@ -92,6 +92,7 @@ The server uses environment variables for API endpoints with fallback defaults:
 - `OPEN_METEO_GEOCODING_API_URL` - Geocoding service
 - `OPEN_METEO_FLOOD_API_URL` - Flood forecast service
 - `OPEN_METEO_CLIMATE_API_URL` - Climate projection service
+- `OPEN_METEO_RETRY_DELAYS_MS` - Comma-separated waits before each retry of a failed upstream request (default: `3000,10000,20000`; empty string disables retries). Retries cover HTTP 429 from the per-minute limit, 5xx and network errors; an hourly or daily 429 is not retried. Retry notices go to stderr.
 
 Transport configuration:
 - `TRANSPORT` - Set to `http` to enable Streamable HTTP mode (default: stdio)

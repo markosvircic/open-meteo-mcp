@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import type {
   AirQualityParams,
   ArchiveParams,
@@ -86,8 +86,59 @@ export class OpenMeteoClient {
       this.floodClient,
       this.climateClient,
     ]) {
-      instance.interceptors.response.use(undefined, OpenMeteoClient.mapHttpError);
+      instance.interceptors.response.use(undefined, (error: unknown) =>
+        this.retryOrMap(instance, error),
+      );
     }
+  }
+
+  /**
+   * Waits between retries, in ms. Override with OPEN_METEO_RETRY_DELAYS_MS="3000,10000,20000"
+   * (empty string disables retrying). Total stays well under typical MCP client timeouts.
+   */
+  private static retryDelays(): number[] {
+    const raw = process.env.OPEN_METEO_RETRY_DELAYS_MS;
+    if (raw === undefined) return [3000, 10000, 20000];
+    return raw
+      .split(',')
+      .map((v) => Number(v.trim()))
+      .filter((v) => Number.isFinite(v) && v >= 0);
+  }
+
+  /**
+   * Retries a failed request when retrying can help: HTTP 429 caused by the per-minute limit
+   * (shared egress IPs on hosts like Render hit it often), HTTP 5xx, and network errors.
+   * A 429 caused by the hourly or daily limit is not retried, since it will not clear in seconds.
+   */
+  private async retryOrMap(instance: AxiosInstance, error: unknown): Promise<never> {
+    if (axios.isAxiosError(error) && error.config) {
+      const status = error.response?.status;
+      const data = error.response?.data as Record<string, unknown> | undefined;
+      const reason = String(data?.reason ?? data?.error ?? '');
+      const config = error.config as InternalAxiosRequestConfig & { __retryCount?: number };
+      const attempt = config.__retryCount ?? 0;
+      const delays = OpenMeteoClient.retryDelays();
+
+      const retryable =
+        (status === 429 && !/hourly|daily/i.test(reason)) ||
+        (status !== undefined && status >= 500) ||
+        (status === undefined && error.code !== 'ECONNABORTED');
+
+      if (retryable && attempt < delays.length) {
+        config.__retryCount = attempt + 1;
+        const retryAfter = Number(error.response?.headers?.['retry-after']);
+        const delay =
+          Number.isFinite(retryAfter) && retryAfter > 0
+            ? Math.min(retryAfter * 1000, 30000)
+            : delays[attempt];
+        console.error(
+          `[open-meteo] ${status ?? error.code ?? 'network error'}${reason ? ` (${reason})` : ''} on ${config.url}; retry ${attempt + 1}/${delays.length} in ${delay} ms`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return instance.request(config);
+      }
+    }
+    return OpenMeteoClient.mapHttpError(error);
   }
 
   private static mapHttpError(error: unknown): never {
@@ -101,7 +152,8 @@ export class OpenMeteoClient {
 
       if (status === 400) throw new Error(`Invalid request parameters: ${apiMessage}`);
       if (status === 422) throw new Error(`Invalid parameter value: ${apiMessage}`);
-      if (status === 429) throw new Error('Open-Meteo rate limit reached. Please retry later.');
+      if (status === 429)
+        throw new Error(`Open-Meteo rate limit reached. Please retry later. (${apiMessage})`);
       if (status !== undefined && status >= 500)
         throw new Error(`Open-Meteo server error (${status}): ${apiMessage}`);
     }
