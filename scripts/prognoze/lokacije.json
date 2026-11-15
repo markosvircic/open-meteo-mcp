@@ -4,27 +4,41 @@
     "naziv": "Maslinik kod Šibenika",
     "lat": 43.678216,
     "lon": 15.964336,
-    "more": false
+    "more": false,
+    "dhmz": [
+      "VRPOLJE - ŠIBENIK",
+      "ŠIBENIK"
+    ]
   },
   {
     "id": "brodarica",
     "naziv": "Brodarica, plaža uz Ribicu",
     "lat": 43.678,
     "lon": 15.926,
-    "more": true
+    "more": true,
+    "dhmz": [
+      "ŠIBENIK"
+    ]
   },
   {
     "id": "dugave",
     "naziv": "Dugave, Zagreb",
     "lat": 45.763,
     "lon": 16.002,
-    "more": false
+    "more": false,
+    "dhmz": [
+      "ZAGREB-NOVI ZAGREB"
+    ]
   },
   {
     "id": "cvetkovec",
     "naziv": "Cvetkovec (Rasinja)",
     "lat": 46.20611,
     "lon": 16.69556,
-    "more": false
+    "more": false,
+    "dhmz": [
+      "LUDBREG",
+      "KOPRIVNICA"
+    ]
   }
 ]
