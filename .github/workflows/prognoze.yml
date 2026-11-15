@@ -1,0 +1,43 @@
+name: Prognoze za odabrane lokacije
+
+# Povlači Open-Meteo prognoze (ECMWF HRES, ICON-D2, ICON-2I, ECMWF ansambl, more)
+# za lokacije iz scripts/prognoze/lokacije.json i sprema ih u granu "podaci".
+# Grana "podaci" sadrži samo zadnje stanje (prepisuje se), pa ne pokreće CI ni Render.
+
+on:
+  schedule:
+    # UTC; nakon što Open-Meteo objavi nove vrtnje (ECMWF 00z ~07 UTC, 12z ~19 UTC)
+    - cron: "37 1 * * *"
+    - cron: "37 7 * * *"
+    - cron: "37 13 * * *"
+    - cron: "37 19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prognoze
+  cancel-in-progress: false
+
+jobs:
+  dohvati:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Povuci prognoze
+        run: python3 scripts/prognoze/dohvati.py out
+
+      - name: Spremi u granu podaci
+        run: |
+          cd out
+          git init -q
+          git checkout -q -b podaci
+          git add -A
+          git -c user.name="prognoze-bot" -c user.email="actions@users.noreply.github.com" \
+            commit -q -m "Prognoze $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" podaci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
